@@ -15,7 +15,7 @@ It’s based on open source products so there is no vendor lock-in, the users of
 
 It’s build with strong security measures, based on practices used in FinTech for payment providers and banks. It’s ready to pass SOC  or PCI-DSS security certification.
 
-The main platform is based on AWS cloud - it can be offered as part of our partnership trough resellers to get the most discounts. 
+The main platform is based on AWS cloud
 
 
 
