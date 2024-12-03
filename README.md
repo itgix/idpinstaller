@@ -119,6 +119,13 @@ mkdir temp; mkdir git
 
 set access key and secret in ~/.aws/credentials
 
+
+You need to have installed the following cli command tools:
+- aws-cli
+- helm
+- terraform
+- yq
+
 ## Requirements
 To be able to run the script and bootstrap the application development platform you'll need to following prepared in advance
 
@@ -247,15 +254,15 @@ Mandatory:
 
 Optional:
 
-| Option                          | default                    | Description                                                                                                                                                                                                                             |
-|---------------------------------|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| terraform_ver                   | 1.7                        | Version of the terraform binary that will be auto-downloaded and used                                                                                                                                                                   |
-| applications_template_repo      | none                       | Source git repository for the teplate of custom applications that will run on the container platform. If left empty no application bootstrapping will be done                                                                           |
-| applications_destination_repo   | none                       | Destination git repository that will be bootstrapped with application repo template , where argocd will be pointed to, should be a http/s as this is the protocol Argo expects. If left empty no application bootstrapping will be done |
-| applications_argo_access_token  | none                       | access token for the desitnation git repositories with read access that ArgoCD will use to get it's configuration.If left empty no application bootstrapping will be done                                                               |
-| eks_aws_auth_users              | user used for provisioning | providing additional IAM users to have access to Kubernetes apart from the user used for provisioning.  It should be a yaml list containing "username" and "group" as shown in the example below                                        |
-| custom_secrets                  | none                       | Optionally generate random secrets in Secrets manager to be used later by applications. Samples provided below and in the template file                                                                                                 |
-
+| Option                          | default                    | Description                                                                                                                                                                                                                                             |
+|---------------------------------|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| terraform_ver                   | 1.7.0                      | Version of the terraform binary that will be auto-downloaded and used                                                                                                                                                                                   |
+| applications_template_repo      | none                       | Source git repository for the teplate of custom applications that will run on the container platform. If left empty no application bootstrapping will be done                                                                                           |
+| applications_destination_repo   | none                       | Destination git repository that will be bootstrapped with application repo template , where argocd will be pointed to, should be a http/s as this is the protocol Argo expects. If left empty no application bootstrapping will be done                 |
+| applications_argo_access_token  | none                       | access token for the desitnation git repositories with read access that ArgoCD will use to get it's configuration.If left empty no application bootstrapping will be done                                                                               |
+| eks_aws_auth_users              | user used for provisioning | providing additional IAM users to have access to Kubernetes apart from the user used for provisioning.  It should be a yaml list containing "username" and "group" as shown in the example below                                                        |
+| custom_secrets                  | none                       | Optionally generate random secrets in Secrets manager to be used later by applications. Samples provided below and in the template file                                                                                                                 |
+| acm_certificate_enable          | true                       | If you would like to request an Amazon managed server wildcard certificate for the configured main domain. This has a pre-requisite to have a managed DNS zone in Route53 to automate the verification process, so if you don't have, set this to false |
 
 We can additionally override any of the exposed terraform variables as described below
 
