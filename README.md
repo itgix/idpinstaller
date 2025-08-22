@@ -71,7 +71,7 @@ If you'll use dynamic domain registration features make sure that there is a wor
 Use the config generator at https://adp.itgix.com or write your yaml config by modifying the template file in config/template.yaml. There is a description of the configuration options below.
 Store under a directory on your local machine where you have access to like the home directory ~/myconfig.yaml
 
-### 5. Run the command to provision your environment
+### 6. Run the command to provision your environment
    You can run in dry-run mode to only see what the installer will do without actually creating resources. You'll need to create a state bucket first if it's the first time you're running with this config.
    ```
    ./idpinstall.py --awsprofile myaws --config-file ~/myconfig.yaml --create-state-bucket-only
@@ -83,7 +83,7 @@ Store under a directory on your local machine where you have access to like the 
    ```
    - In that time you can check the generated logs in the logs directory of the idp-installer repository.
 
-## 5. Work with your newly created environment
+## Work with your newly created environment
 
    - After the script finishes, you'll have to set your kubeconfig with the desired aks cluster - name of the cluster and region:
    ```
@@ -258,8 +258,10 @@ Optional:
 |---------------------------------|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | terraform_ver                   | 1.7.0                      | Version of the terraform binary that will be auto-downloaded and used                                                                                                                                                                                   |
 | applications_template_repo      | none                       | Source git repository for the teplate of custom applications that will run on the container platform. If left empty no application bootstrapping will be done                                                                                           |
+| applications_template_repo_branch | | Branch of the applications template repository to be used                                                                                                                                  |
 | applications_destination_repo   | none                       | Destination git repository that will be bootstrapped with application repo template , where argocd will be pointed to, should be a http/s as this is the protocol Argo expects. If left empty no application bootstrapping will be done                 |
 | applications_argo_access_token  | none                       | access token for the desitnation git repositories with read access that ArgoCD will use to get it's configuration.If left empty no application bootstrapping will be done                                                                               |
+| gitops_template_repo_branch | | Branch of the gitops template repository to be used                                                                                                                                  |
 | eks_aws_auth_users              | user used for provisioning | providing additional IAM users to have access to Kubernetes apart from the user used for provisioning.  It should be a yaml list containing "username" and "group" as shown in the example below                                                        |
 | custom_secrets                  | none                       | Optionally generate random secrets in Secrets manager to be used later by applications. Samples provided below and in the template file                                                                                                                 |
 | acm_certificate_enable          | true                       | If you would like to request an Amazon managed server wildcard certificate for the configured main domain. This has a pre-requisite to have a managed DNS zone in Route53 to automate the verification process, so if you don't have, set this to false |
@@ -281,6 +283,135 @@ addons_versions = {
 }
 ```
 
+### VPC Configuration
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `provision_vpc` | bool | Whether to provision a new VPC. | `true` |
+| `vpc_cidr` | string | CIDR block for the VPC. | `"10.61.0.0/16"` |
+| `vpc_single_nat_gateway` | bool | Use a single NAT gateway instead of multiple. | `true` |
+
+---
+
+### DNS Configuration
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `dns_hosted_zone` | string | AWS Route53 Hosted Zone ID. | `"Z32O12XQLNTSW2"` |
+| `dns_main_domain` | string | Primary DNS domain for the environment. | `"itgix.eu"` |
+
+---
+
+### RDS Configuration
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `create_rds` | bool | Whether to create an RDS instance. | `false` |
+| `rds_scaling_config.min_capacity` | float | Minimum Aurora Serverless v2 capacity units. | `0.5` |
+| `rds_allowed_cidr_blocks` | list | Additional CIDR blocks allowed to access the DB. | `["10.50.0.0/16", "10.51.0.0/16"]` |
+
+---
+
+### EKS Configuration
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `eks_automode_enabled` | bool | Enable Amazon EKS Auto Mode. | `true` |
+| `eks_cluster_admins` | list | List of IAM usernames with admin rights in EKS. | `[{ username: "ytodorov" }, { username: "mvukadinoff" }]` |
+| `eks_aws_users_path` | string | Path for AWS IAM users in the config map. | `"/users/"` |
+| `eks_ng_min_size` | int | Minimum number of nodes in a node group. | `3` |
+| `eks_ng_desired_size` | int | Desired number of nodes. | `4` |
+| `eks_ng_max_size` | int | Maximum number of nodes. | `4` |
+| `eks_ng_capacity_type` | string | Node capacity type (`SPOT` or `ON_DEMAND`). | `"SPOT"` |
+
+---
+
+### AWS Services Toggles
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `provision_sqs` | bool | Provision SQS queues. | `false` |
+| `application_waf_enabled` | bool | Enable WAF for application load balancers. | `true` |
+| `cloudfront_waf_enabled` | bool | Enable WAF for CloudFront. | `false` |
+| `create_elasticache_redis` | bool | Provision ElastiCache Redis. | `true` |
+| `redis_allowed_cidr_blocks` | list | CIDR blocks allowed for Redis access. | `["10.56.0.0/16"]` |
+| `enable_karpenter` | bool | Enable Karpenter autoscaler. | `true` |
+| `provision_ecr` | bool | Provision Amazon ECR repositories. | `false` |
+| `enable_fluent_bit` | bool | Enable Fluent Bit logging. | `true` |
+| `aws_loadbalancer_enabled` | bool | Enable AWS Load Balancer Controller. | `true` |
+| `external_dns_enabled` | bool | Enable External DNS for Kubernetes. | `true` |
+| `external_secrets_enabled` | bool | Enable External Secrets Operator. | `true` |
+| `enable_metrics_server` | bool | Enable Metrics Server for Kubernetes. | `true` |
+| `enable_vpa` | bool | Enable Vertical Pod Autoscaler. | `true` |
+| `enable_kyverno` | bool | Enable Kyverno policy engine. | `true` |
+| `enable_policy_reporter` | bool | Enable Policy Reporter. | `true` |
+| `enable_default_policies` | bool | Apply default security policies. | `true` |
+| `demo_app_enabled` | bool | Deploy sample demo application. | `true` |
+| `adp_agent_enabled` | bool | Enable ADP agent for telemetry. | `true` |
+| `enable_prometheus_stack` | bool | Enable Prometheus monitoring stack. | `true` |
+| `enable_tempo` | bool | Enable Tempo tracing. | `true` |
+| `enable_loki` | bool | Enable Loki logging. | `true` |
+
+---
+
+### ACM / TLS
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `acm_certificate_enable` | bool | Automatically create a wildcard ACM certificate. | `true` |
+
+---
+
+### S3 Buckets
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `s3_create` | bool | Whether to create S3 buckets. | `true` |
+| `bucket_configuration` | list | List of S3 bucket configurations (see below). | *See sample* |
+
+**Bucket configuration fields:**
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `bucket_name_suffix` | string | Suffix for the bucket name. | `"rag-demo"` |
+| `acl_type` | string | ACL type for the bucket. | `"log-delivery-write"` |
+| `create_s3_user` | bool | Create a dedicated IAM user for the bucket. | `false` |
+| `versioning_enabled` | bool | Enable versioning. | `true` |
+| `sse_algorithm` | string | Server-side encryption algorithm. | `"AES256"` |
+| `store_access_key_in_ssm` | bool | Store generated access keys in SSM. | `true` |
+| `block_public_acls` | bool | Block public ACLs. | `false` |
+| `block_public_policy` | bool | Block public bucket policies. | `false` |
+| `ignore_public_acls` | bool | Ignore public ACLs. | `true` |
+| `restrict_public_buckets` | bool | Restrict public buckets. | `true` |
+| `cors_configuration` | list | CORS configuration rules. | `[]` |
+
+---
+
+### Secrets
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `custom_secrets` | list | List of custom secrets to generate in AWS Secrets Manager. | `[{ secret_name: "qdrant-env-secret", length: 20, special: false }]` |
+
+---
+
+### Naming
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `allow_long_names` | bool | Allow resource names longer than AWS defaults. | `false` |
+
+---
+
+### AWS WAF Override Rules
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `rules` | list | Custom WAF rule overrides. | See sample YAML |
+
+---
+
+
 In the config yaml we are allowed to override in the following way
 
 ```
@@ -301,6 +432,16 @@ eks_aws_auth_users:
 
 For more info on the available options please check the readme of the template terraform repository
 
+## Breaking changes
+
+### Upgrading legacy EKS cluster to use Access Entries
+
+The `v1.1.3` upgrade makes the shift towards `API_AND_CONFIGMAP` authentication_mode and EKS Access Entries. During this the EKS automatically makes translates the original cluster creator to an eks entry which will cause an error if you try to add the same using the `eks_cluster_admins` variable. So in this case you'll want to either not specify the original cluster creator in the variable OR import it with terraform.
+
+This might look like this (depending on the existing entry's principal ARN):
+```
+terraform import -var-file=config/stg/eu-west-1/terraform.tfvars "module.eks[0].module.eks.aws_eks_access_entry.this[\"htonev\"]" eks-ew1-stg-igxadp:arn:aws:iam::XXXXXXXXXXXX:user/users/htonev
+```
 
 ## Support
 Rocket channel
@@ -311,8 +452,8 @@ or log issues here in Github
 
 
 ## Roadmap
-build an AI profile
-Adapt profiles to be PCIDSS compliant
+- build an AI profile
+- Adapt profiles to be PCIDSS compliant
 
 ## Contributing
 State if you are open to contributions and what your requirements are for accepting them.
@@ -321,8 +462,11 @@ You can also document commands to lint the code or run tests. These steps help t
 
 ## Authors and acknowledgment
 ITGix
+
 Hristyan Tonev
+
 Mihail Vukadinoff
+
 Vladimir Dimitrov
 
 ## License
