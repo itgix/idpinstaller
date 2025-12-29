@@ -452,8 +452,14 @@ or log issues here in Github
 
 
 ## Roadmap
-- build an AI profile
-- Adapt profiles to be PCIDSS compliant
+
+- further expand the AI profile to include local model run in Kubernetes
+  
+- Adapt profiles to be PCIDSS and SOC2 compliant
+
+- Self service portal with AI agents to execute the DevOps engineer tasks for updating the gitops repositories
+
+- Capability to deploy in Azure
 
 ## Contributing
 State if you are open to contributions and what your requirements are for accepting them.
