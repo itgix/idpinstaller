@@ -563,12 +563,33 @@ or log issues here in Github
 - Capability to deploy in Azure
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+We welcome contributions from the community
+
+If you’re interested in contributing to this project or any of its related open-source components (templates, profiles, tooling, or documentation), there are several ways to get involved:
+
+Open an issue to report bugs, suggest improvements, or propose new features
+
+Fork the repository and submit a pull request
+
+Join the discussion on CNCF Slack and reach out to Mihail Vukadinoff
+
+Review existing issues and help with testing, documentation, or code reviews
+
+Before submitting a pull request:
+
+Keep changes focused and well-scoped
+
+Follow existing patterns and conventions
+
+Add or update documentation where relevant
+
+By participating in this project, you agree to follow our code of conduct and collaborate in a respectful, constructive way.
+
+Thank you for helping improve the project!
 
 ## Authors and acknowledgment
-ITGix
+
+main contributors from ITGix
 
 Hristyan Tonev
 
