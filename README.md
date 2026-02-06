@@ -21,13 +21,18 @@ The main platform is using AWS cloud.
 
 ## Quickstart guide
 
-### 1. Prerequisites: You'll need to create a set of git repositories for the automation to bootstrap your environment configuration and token to access them.
+### 1. Prerequisites: 
+
+You'll need to create a set of git repositories for the automation to bootstrap your environment configuration and token to access them.
+
 - Repository to host the generated terraform code
 - Repository to host the generated Kubernetes manifests that install the services on the cluster
 - Optional 3rd repository to store the manifests of your custom applications that run on top of the container platform
 
 
-### 2. Next, you have to run the appopriate script for your operating system to install all command line tools and prerequisites:
+### 2. Prepare your machine to run the platform automation 
+
+Next, you have to run the appopriate script for your operating system to install all command line tools and prerequisites:
 
  This needs to be executed only once to setup your host. It will download automatically all tools and repositories needed for environment provisioning.
 
