@@ -183,9 +183,9 @@ When using SSO you need to first configure the profile and login, then execute n
 ## in ~/.aws/config
 [profile itgixlandingzone]
 region=eu-central-1
-sso_start_url=https://d-9067f9b701.awsapps.com/start
+sso_start_url=https://d-9067fxxxx.awsapps.com/start
 sso_region=us-east-1
-sso_account_id=905418051897
+sso_account_id=9054180518XX
 sso_role_name=AdministratorAccess
 
 ## Make sure you unset any old AWS keys you might have in your bash profile
@@ -200,7 +200,7 @@ https://device.sso.us-east-1.amazonaws.com/
 
 Then enter the code:
 
-KJXH-KDPX
+XXX-XXX
 Successfully logged into Start URL: https://d-9067f9b701.awsapps.com/start
 $ ./idpinstaller.py --awsprofile itgixlandingzone --config-file config/itgix-landing-zone.yml
 Start script.                                                                                       
@@ -421,26 +421,122 @@ addons_version:
 
 Sample for providing additional IAM users to have access to Kubernetes apart from the user used for provisioning 
 ```commandline
-eks_aws_auth_users:
+eks_cluster_admins:
   - username: "myuser"
-    groups:
-      - "system:masters"
-  - username: "aseconduser"
-    groups:
-      - "system:masters"
+    path: /
+  - username: "anotheruser"
+    path: /
 ```
 
 For more info on the available options please check the readme of the template terraform repository
 
-## Breaking changes
+## Upgrade Notes for Versions with Breaking Changes
 
-### Upgrading legacy EKS cluster to use Access Entries
+### Update to ADP v1.1.3 - upgrading legacy EKS cluster to use Access Entries
 
 The `v1.1.3` upgrade makes the shift towards `API_AND_CONFIGMAP` authentication_mode and EKS Access Entries. During this the EKS automatically makes translates the original cluster creator to an eks entry which will cause an error if you try to add the same using the `eks_cluster_admins` variable. So in this case you'll want to either not specify the original cluster creator in the variable OR import it with terraform.
 
 This might look like this (depending on the existing entry's principal ARN):
 ```
 terraform import -var-file=config/stg/eu-west-1/terraform.tfvars "module.eks[0].module.eks.aws_eks_access_entry.this[\"htonev\"]" eks-ew1-stg-igxadp:arn:aws:iam::XXXXXXXXXXXX:user/users/htonev
+```
+
+## Update to ADP v1.2.3 with Kubernetes 1.33
+
+Before making the upgrade to version 1.33, you have to update the AMI version.
+If you have used until now the adp-tf-envtempl-standard with tag v1.2.2, you have to change it to version v1.2.3, where we have the new AMI type, and run the idp-installer in order to change the AMY type.
+  
+https://github.com/itgix/adp-tf-envtempl-standard/blob/develop/variables.tf#L147
+
+  ```
+  variable "eks_ami_type" {
+  description = "Default AMI type for the EKS worker nodes"
+  type        = string
+  default     = "BOTTLEROCKET_x86_64"
+  }
+  
+  ```
+After that you have to run once again the idp-installer, but this time change the eks_cluster_version to 1.33 and the addons versions 
+Example:
+  ```
+  # EKS related variable
+  eks_cluster_version: "1.33"
+  addons_versions:
+   coredns: "v1.12.3-eksbuild.1"
+   kube_proxy: "v1.33.3-eksbuild.6"
+   vpc_cni: "v1.20.1-eksbuild.5"
+   ebs_csi: "v1.48.0-eksbuild.1"
+ 
+ ```
+ If you use Karpenter you can run :
+ ./idpinstall.py --update-gitops --awsprofile your-profile --config-file config/idp-client-configs/template.yml
+
+So that it updates the following variable in the helm/karpenter/values/stage/region/values.yaml file:  amiFamily: Bottlerocket
+
+## Upgrade to ADP profile v1.2.7 and v1.2.8 wich upgrades Karpenter to v1.8.1
+1. We have to completely drain and scale down the karpenter provisioned nodes.
+For that purpose we have two options:
+   - We can temporary scale up our current nodegroup and move the workloads there, uninstall and install karpenter and then scale down the temporary nodegroup. Take in mind that during scale down, the oldest nodes will be deleted and all workloads will be moved across the new nodes of the cluster nodegroup.
+   - We can create second node group with second role attached to it (giving the same permissions of the old node group's role)
+
+When we have the new nodes up and running, we can drain the karpenter provisioned nodes.
+
+2. Afterwards we have to disable and uninstall Karpenter and remove any remaining resources and crds:
+
+```
+kubectl get nodeclaims
+kubectl get ec2nodeclasses
+kubectl get nodepools
+
+```
+
+If we have found any resources, we have to delete them:
+
+```
+kubectl delete nodeclaims <NodeClaimName>
+kubectl delete ec2nodeclasses <ec2nodeclassesName>
+Kubectl delete nodepools <nodepoolsName>
+
+```
+
+If any of the upper-given resources stuck in deleting state, we can patch the finalizers, for instance:
+
+```
+kubectl patch ec2nodeclasses default   --type=json   -p='[{"op":"remove","path":"/metadata/finalizers"}]'
+
+```
+After that we can safely delete the crds:
+
+```
+kubectl get crd | grep karpenter
+ec2nodeclasses.karpenter.k8s.aws                        2026-02-03T08:52:23Z
+nodeclaims.karpenter.sh                                 2026-02-03T08:52:23Z
+nodepools.karpenter.sh                                  2026-02-03T08:52:23Z
+
+kubectl delete crd ec2nodeclasses.karpenter.k8s.aws
+kubectl delete crd nodeclaims.karpenter.sh
+kubectl delete crd nodeclaims.karpenter.sh
+
+```
+3. And with that we are ready to install the new version of karpenter:
+
+We have to add the new tags in the environment config file:
+
+```
+
+env_template_repo: "git@github.com:itgix/adp-tf-envtempl-standard.git"
+env_template_repo_branch: "v1.2.7"
+
+gitops_template_repo: "git@github.com:itgix/adp-k8s-templ-argoinfrasvcs.git"
+gitops_template_repo_branch: "v1.2.8"
+
+```
+
+And run the platform with --update-all flag:
+
+```
+./idpinstall.py --awsprofile <example> --config-file <path_to_env_config_file.yaml> --update-all
+
 ```
 
 ## Support
@@ -474,6 +570,10 @@ Hristyan Tonev
 Mihail Vukadinoff
 
 Vladimir Dimitrov
+
+Stanislava Racheva
+
+Tsvetana Kanzova
 
 ## License
 GNU GENERAL PUBLIC LICENSE
