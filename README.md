@@ -3,7 +3,7 @@ Installer for the ITGix Application Development Platform
 
 
 ## Getting started
-This is a set of automation tools that will allow you to rapidly spin up an empty ready to go environment in AWS with Kubernetes and a database. 
+This is a set of automation tools that will allow you to rapidly spin up an empty ready to go environment in AWS or GCP with Kubernetes and a database. AWS remains the default cloud for backwards compatibility; use `--cloud gcp` to run the GCP installer path.
 Read below on what you need to configure as prerequisites to be able to use it.
 
 ## Description
@@ -15,7 +15,7 @@ It’s based on open source products so there is no vendor lock-in, the users of
 
 It’s build with strong security measures, based on practices used in FinTech for payment providers and banks. It’s ready to pass SOC  or PCI-DSS security certification.
 
-The main platform is using AWS cloud.
+The main platform uses AWS by default and can target GCP when requested with `--cloud gcp` or `--platform gcp`.
 
 
 
@@ -46,8 +46,9 @@ Next, you have to run the appopriate script for your operating system to install
     chmod +x prepare-host.sh
     ./prepare-host.sh
    ```
+### 3. Setup cloud authentication:
 
-### 3. Setup AWS profile:
+For AWS, set up an AWS profile:
 
 Generate an API KEY in AWS and store it under
 ~/.aws/credentials
@@ -68,23 +69,64 @@ Or use ```aws configure --profile myaws``` for a wizzard to set those up.
 
 Note: For SSO login read below.
 
+For GCP, authenticate with the Google Cloud CLI and Application Default Credentials:
 
-### 4. Prepare AWS account
+```
+gcloud auth application-default login
+gcloud config set project my-gcp-project-id
+```
+
+You can also pass `--gcp-credentials-file /path/to/service-account.json`.
+
+
+### 4. Prepare cloud account
 If you'll use dynamic domain registration features make sure that there is a working Route53 zoen in the AWS account you provision in. Setup the zone ID and main domain in the config file.
+For GCP, make sure the target project has billing enabled, required APIs enabled by your Terraform template, and a Cloud DNS managed zone configured in the config file.
 
 ### 5. Configuration
 Use the config generator at https://adp.itgix.com or write your yaml config by modifying the template file in config/template.yaml. There is a description of the configuration options below.
 Store under a directory on your local machine where you have access to like the home directory ~/myconfig.yaml
 
 ### 6. Run the command to provision your environment
+   The script now supports two explicit commands and a cloud selector:
+   - ```./idpinstall.py install``` to provision or update an environment
+   - ```./idpinstall.py destroy``` to tear down an environment
+   - ```--cloud aws|gcp``` selects the cloud provider. ```--platform aws|gcp``` is supported as an alias. The default is ```aws```.
+   - Running ```./idpinstall.py``` without a command keeps the old behavior and defaults to ```install```
+
    You can run in dry-run mode to only see what the installer will do without actually creating resources. You'll need to create a state bucket first if it's the first time you're running with this config.
    ```
-   ./idpinstall.py --awsprofile myaws --config-file ~/myconfig.yaml --create-state-bucket-only
-   ./idpinstall.py --awsprofile myaws --config-file ~/myconfig.yaml --dry-run
+   ./idpinstall.py install --awsprofile myaws --config-file ~/myconfig.yaml --create-state-bucket-only
+   ./idpinstall.py install --awsprofile myaws --config-file ~/myconfig.yaml --dry-run
    ```
    - Or you can run the script in order to create the resources, without the ``` --dry-run ``` flag:
    ```
-   ./idpinstall.py --awsprofile myaws --config-file ~/myconfig.yaml 
+   ./idpinstall.py install --awsprofile myaws --config-file ~/myconfig.yaml
+   ```
+   - To provision on GCP:
+   ```
+   ./idpinstall.py install --cloud gcp --config-file ~/my-gcp-config.yaml
+   ```
+   - To override the GCP project:
+   ```
+   ./idpinstall.py install --cloud gcp --gcp-project my-gcp-project-id --config-file ~/my-gcp-config.yaml
+   ```
+   - To preview a teardown without making changes:
+   ```
+   ./idpinstall.py destroy --awsprofile myaws --config-file ~/myconfig.yaml --dry-run
+   ```
+   - To destroy an environment and optionally clean the generated repos:
+   ```
+   ./idpinstall.py destroy --awsprofile myaws --config-file ~/myconfig.yaml --cleanup-repos
+   ```
+   - To preview or destroy a GCP environment:
+   ```
+   ./idpinstall.py destroy --cloud gcp --config-file ~/my-gcp-config.yaml --dry-run
+   ./idpinstall.py destroy --cloud gcp --config-file ~/my-gcp-config.yaml
+   ```
+   - If Kubernetes access is already unavailable, skip the Kubernetes-side cleanup and destroy only Terraform-managed resources:
+   ```
+   ./idpinstall.py destroy --cloud gcp --config-file ~/my-gcp-config.yaml --skip-k8s-cleanup
    ```
    - In that time you can check the generated logs in the logs directory of the idp-installer repository.
 
@@ -126,7 +168,8 @@ set access key and secret in ~/.aws/credentials
 
 
 You need to have installed the following cli command tools:
-- aws-cli
+- aws-cli for AWS installs
+- gcloud and gke-gcloud-auth-plugin for GCP installs
 - helm
 - terraform
 - yq
@@ -149,11 +192,17 @@ Mandatory arguments:
 ```
   --awsprofile AWSPROFILE
                         the AWS profile name that is configured on the local machine typically under ~/.aws/config that 
-                        info about the credentials to authenticate against AWS.
+                        info about the credentials to authenticate against AWS. Required only with --cloud aws.
 ```
 Optional arguments:
 ```
   -h, --help            show this help message and exit
+  --cloud {aws,gcp}, --platform {aws,gcp}
+                        Target cloud provider. Default is aws.
+  --gcpproject GCPPROJECT, --gcp-project GCPPROJECT
+                        GCP project ID. Overrides gcp_project_id from the config file.
+  --gcp-credentials-file GCP_CREDENTIALS_FILE
+                        Path to a service account JSON key file. Uses gcloud ADC if omitted.
   --loglevel LOGLEVEL   Loglevel. warn, normal, critical. Default normal
   --dry-run             Run in dry-run mode without making actual changes
   --config-file CONFIG_FILE
@@ -162,6 +211,10 @@ Optional arguments:
   --update-infra        Update (overwrite) infrastructure (terraform) repository
   --update-gitops       Update (overwrite) GitOps (argocd) repositories
   --update-all          Update both infrastructure and GitOps repositories
+  --skip-k8s-cleanup    Destroy command only. Skip Kubernetes cleanup before terraform destroy
+  --cleanup-repos       Destroy command only. Clean generated repositories after destroy
+  --clean-env-files-only
+                        Destroy command only. Clean only environment-specific files in generated repositories after destroy
 ```
 
 Examples
@@ -252,7 +305,6 @@ Mandatory:
 | gitops_template_repo | | Source git repository for the teplate of infastructure services that will run on the container platform , like service for managing ALBs, DNS , secrets, autoscaling and more |
 | gitops_destination_repo | | Destination git repository that will be bootstrapped with infrastructure services, where argocd will be pointed to, should be a http/s as this is the protocol Argo expects |
 | gitops_argo_access_token| | access token for the desitnation git repositories with read access that ArgoCD will use to get it's configuration |
-| gitops_argo_access_token| | access token for the desitnation git repositories with read access that ArgoCD will use to get it's configuration |
 | enable_karpenter| ||
 
 
@@ -270,6 +322,42 @@ Optional:
 | eks_aws_auth_users              | user used for provisioning | providing additional IAM users to have access to Kubernetes apart from the user used for provisioning.  It should be a yaml list containing "username" and "group" as shown in the example below                                                        |
 | custom_secrets                  | none                       | Optionally generate random secrets in Secrets manager to be used later by applications. Samples provided below and in the template file                                                                                                                 |
 | acm_certificate_enable          | true                       | If you would like to request an Amazon managed server wildcard certificate for the configured main domain. This has a pre-requisite to have a managed DNS zone in Route53 to automate the verification process, so if you don't have, set this to false |
+
+### Cloud-aware GitOps overrides
+
+AWS remains the default when `cloud` is not present in generated infra facts. For
+GCP, ingress-enabled applications use the GCE controller, GKE managed
+certificates, FrontendConfig HTTPS redirects, and Google Workload Identity
+annotations.
+
+Ingress annotation maps are merged in this order:
+`ingress_annotations`, `<cloud>_ingress_annotations`, then
+`<app>_ingress_annotations`. Service account maps use the same order:
+`service_account_annotations`, `<cloud>_service_account_annotations`, then
+`<app>_service_account_annotations`. The application map wins when the same key
+appears more than once.
+
+```yaml
+gcp_ingress_annotations:
+  example.com/managed-by: "platform"
+
+backstage_ingress_annotations:
+  example.com/application: "backstage"
+
+gcp_service_account_annotations:
+  example.com/identity-provider: "gcp"
+
+external_dns_service_account_annotations:
+  example.com/application: "external-dns"
+```
+
+Supported ingress app prefixes are `argocd`, `backstage`, `policy_reporter`,
+`grafana`, `alertmanager`, `prometheus`, and `devlake`. GKE managed certificates
+and HTTPS redirects can be disabled globally with
+`gcp_ingress_managed_certificates_enabled: false` and
+`gcp_ingress_https_redirect_enabled: false`.
+Supported service-account app prefixes are `external_dns` and
+`external_secrets`.
 
 We can additionally override any of the exposed terraform variables as described below
 
@@ -543,6 +631,50 @@ And run the platform with --update-all flag:
 ./idpinstall.py --awsprofile <example> --config-file <path_to_env_config_file.yaml> --update-all
 
 ```
+
+## Upgrade to ADP v1.3.0 - larger VPC subnets
+
+`v1.3.0` makes the VPC subnets configurable and raises the defaults. Until now the private and public subnets were hardcoded `/26` (~60 usable IPs per AZ), which runs out quickly because the EKS VPC CNI assigns an address per pod. On a `/16` VPC the new defaults are:
+
+| Tier | Before | Now |
+|------|--------|-----|
+| private | `/26` x3 | `10.x.0.0/21`, `10.x.8.0/21`, `10.x.16.0/21` |
+| public | `/26` x3 | `10.x.28.0/23`, `10.x.30.0/23`, `10.x.32.0/23` |
+| database | `10.x.24.0/24`, `10.x.25.0/24`, `10.x.26.0/24` | unchanged |
+
+**Existing environments are not affected and no action is required.** The template reads the subnets of the already provisioned VPC back from AWS and keeps them, so the upgrade plans no subnet changes. Each plan now prints a warning listing the layout that is being kept - this is expected, not an error. New environments get the larger subnets automatically.
+
+This release also bumps `terraform-aws-modules/vpc/aws` from `5.5.x` to `6.7.2`. No resources are renamed, added or replaced by that bump.
+
+### Optional: apply the new layout to an existing environment
+
+Re-creates the private and public subnets and, with them, the EKS managed node groups (all nodes are rolled) and the EFS mount targets. The VPC, the EKS cluster itself, the NAT gateway Elastic IPs, RDS and ElastiCache/Valkey are kept.
+
+1. Delete the Kubernetes-managed load balancers (`Service` of type `LoadBalancer` and Ingress resources). Their ENIs are not managed by Terraform and will block the deletion of the old subnets.
+
+2. Add to the environment config file:
+```yaml
+force_subnet_resize: true
+```
+
+3. Run the installer - expect workload downtime while the node groups are re-created:
+```
+./idpinstall.py --awsprofile <example> --config-file <path_to_env_config_file.yaml> --update-all
+```
+
+4. Re-create the load balancer services / ingresses.
+
+The database subnets are deliberately excluded from `force_subnet_resize`, because moving them re-creates the DB subnet group and therefore the RDS cluster and the ElastiCache/Valkey replication groups. Only with a restore plan at hand: `force_database_subnet_resize: true`.
+
+### Optional: custom subnet sizes
+
+Each tier takes `newbits` (added to the VPC prefix length) and `offsets` (blocks of that size inside `vpc_cidr`), or explicit `cidrs`. Overlapping ranges are reported at plan time.
+```yaml
+vpc_private_subnets:
+  newbits: 4          # /20 on a /16 VPC
+  offsets: [0, 1, 2]
+```
+
 
 ## Support
 Rocket channel
