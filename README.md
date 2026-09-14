@@ -160,7 +160,7 @@ deactivate
 
 mkdir temp; mkdir git
 
-./idpinstaller.py --awsprofile=itgixlab --dry-run
+./idpinstall.py --awsprofile=itgixlab --dry-run
 
 ```
 
@@ -211,6 +211,14 @@ Optional arguments:
   --update-infra        Update (overwrite) infrastructure (terraform) repository
   --update-gitops       Update (overwrite) GitOps (argocd) repositories
   --update-all          Update both infrastructure and GitOps repositories
+  --update-infra-facts-only
+                        Regenerate only infra-facts.yaml in the generated repositories
+  --skip-terraform-plan-apply
+                        Skip terraform plan/apply, reuse the current state outputs and continue with the remaining installer steps
+  --allow-unsupported-env-template
+                        Bypass the env template compatibility check. Use only if you accept supplying more Terraform variables in YAML and reviewing the plan more carefully
+  --infracost-token INFRACOST_TOKEN
+                        Infracost API token used for the cost estimate printed from the plan
   --skip-k8s-cleanup    Destroy command only. Skip Kubernetes cleanup before terraform destroy
   --cleanup-repos       Destroy command only. Clean generated repositories after destroy
   --clean-env-files-only
@@ -221,13 +229,13 @@ Examples
 
 ```
 # Example with default config (config/template.yml) just to do dry-run without actually changing anything
-./idpinstaller.py --awsprofile=itgixlab --dry-run
+./idpinstall.py --awsprofile=itgixlab --dry-run
 ```
 
 Specify a configuration file
 ```
 # Exqample Specify config file
-./idpinstaller.py --awsprofile=itgixlab --config-file config/demo-dev.yml
+./idpinstall.py --awsprofile=itgixlab --config-file config/demo-dev.yml
 
 ```
 
@@ -260,7 +268,7 @@ Then enter the code:
 
 XXX-XXX
 Successfully logged into Start URL: https://d-9067f9b701.awsapps.com/start
-$ ./idpinstaller.py --awsprofile itgixlandingzone --config-file config/itgix-landing-zone.yml
+$ ./idpinstall.py --awsprofile itgixlandingzone --config-file config/itgix-landing-zone.yml
 Start script.                                                                                       
 Read configuration file: config/itgix-landing-zone.yml                                              
 Overriding tfvars git/template_repo/variable-template/terraform.tfvars with config/itgix-landing-zone.yml
@@ -402,6 +410,9 @@ addons_versions = {
 | `create_rds` | bool | Whether to create an RDS instance. | `false` |
 | `rds_scaling_config.min_capacity` | float | Minimum Aurora Serverless v2 capacity units. | `0.5` |
 | `rds_allowed_cidr_blocks` | list | Additional CIDR blocks allowed to access the DB. | `["10.50.0.0/16", "10.51.0.0/16"]` |
+| `rds_db_instance_parameters` | list | Parameter-group overrides applied to the DB instances. | `[{ name: "log_min_duration_statement", value: "500" }]` |
+| `rds_failover_priority` | list | Custom Aurora failover priority (promotion tier) per instance. | `[0, 1]` |
+| `rds_performance_retention` | int | Performance Insights retention in days. | `7` |
 
 ---
 
@@ -409,7 +420,10 @@ addons_versions = {
 
 | Parameter | Type | Description | Example |
 |-----------|------|-------------|---------|
-| `eks_automode_enabled` | bool | Enable Amazon EKS Auto Mode. | `true` |
+| `enable_eks_auto_mode` | bool | Enable Amazon EKS Auto Mode. Since `v1.3.0` the standard and Auto Mode flows share one template and this flag selects between them. | `true` |
+| `eks_cluster_version` | string | Kubernetes version. Defaults to `1.35` since `v1.3.0` (was `1.34`). Pin it if you are not ready to move. | `"1.35"` |
+| `addons_versions` | map | EKS add-on versions. Optional since `v1.3.0` — every field defaults, and `efs_csi` / `resolve_conflicts_on_create` were added. | See sample below |
+| `karpenter_allowed_instance_types` | list | Restrict the instance types Karpenter may provision. | `["m6a.large", "m6a.xlarge"]` |
 | `eks_cluster_admins` | list | List of IAM usernames with admin rights in EKS. | `[{ username: "ytodorov" }, { username: "mvukadinoff" }]` |
 | `eks_aws_users_path` | string | Path for AWS IAM users in the config map. | `"/users/"` |
 | `eks_ng_min_size` | int | Minimum number of nodes in a node group. | `3` |
@@ -427,6 +441,7 @@ addons_versions = {
 | `application_waf_enabled` | bool | Enable WAF for application load balancers. | `true` |
 | `cloudfront_waf_enabled` | bool | Enable WAF for CloudFront. | `false` |
 | `create_elasticache_redis` | bool | Provision ElastiCache Redis. | `true` |
+| `redis_serverless_enabled` | bool | Use ElastiCache **serverless** instead of a node-based cluster. Tuned with `redis_serverless_major_engine_version`, `redis_serverless_snapshot_time`, `redis_serverless_cache_usage_limits` and `redis_serverless_snapshot_arns_to_restore`. | `true` |
 | `redis_allowed_cidr_blocks` | list | CIDR blocks allowed for Redis access. | `["10.56.0.0/16"]` |
 | `enable_karpenter` | bool | Enable Karpenter autoscaler. | `true` |
 | `provision_ecr` | bool | Provision Amazon ECR repositories. | `false` |
@@ -444,6 +459,32 @@ addons_versions = {
 | `enable_prometheus_stack` | bool | Enable Prometheus monitoring stack. | `true` |
 | `enable_tempo` | bool | Enable Tempo tracing. | `true` |
 | `enable_loki` | bool | Enable Loki logging. | `true` |
+| `enable_efs_csi` | bool | Provision EFS and the EFS CSI storage class, enabling ReadWriteMany volumes. | `true` |
+| `enable_cert_manager` | bool | Install cert-manager and its ClusterIssuer. Off by default. | `false` |
+| `enable_cloudnative_pg` | bool | Install the CloudNativePG operator for in-cluster PostgreSQL. Off by default. | `false` |
+| `enable_barman_cloud_plugin` | bool | Install the barman-cloud backup plugin for CloudNativePG. Off by default. | `false` |
+| `backstage_enabled` | bool | Deploy Backstage as the Internal Developer Portal. | `true` |
+| `enable_guest_login` | bool | Allow Backstage guest sign-in. Off by default since `v1.3.0` — guest auth used to be forced on. | `false` |
+| `enable_devlake` | bool | Enable Apache DevLake. | `false` |
+
+---
+
+### EFS / ReadWriteMany storage
+
+Set `enable_efs_csi: true` to provision an EFS file system plus the matching storage class. The
+options below tune it; all are optional.
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `efs_encrypted` | bool | Encrypt the file system at rest. | `true` |
+| `efs_kms_key_id` | string | KMS key for encryption. Uses the AWS-managed key when unset. | `"arn:aws:kms:..."` |
+| `efs_performance_mode` | string | `generalPurpose` or `maxIO`. | `"generalPurpose"` |
+| `efs_throughput_mode` | string | `bursting`, `provisioned` or `elastic`. | `"elastic"` |
+| `efs_provisioned_throughput_in_mibps` | number | Throughput when `efs_throughput_mode` is `provisioned`. | `64` |
+| `efs_transition_to_ia` | string | Lifecycle transition to Infrequent Access. | `"AFTER_30_DAYS"` |
+| `efs_transition_to_archive` | string | Lifecycle transition to Archive. | `"AFTER_90_DAYS"` |
+| `efs_transition_to_primary_storage_class` | string | Transition back to primary on access. | `"AFTER_1_ACCESS"` |
+| `efs_backup_policy_enabled` | bool | Enable AWS Backup for the file system. | `true` |
 
 ---
 
@@ -452,6 +493,7 @@ addons_versions = {
 | Parameter | Type | Description | Example |
 |-----------|------|-------------|---------|
 | `acm_certificate_enable` | bool | Automatically create a wildcard ACM certificate. | `true` |
+| `acm_create_route53_validation_records` | bool | Create the Route 53 validation records for the certificate. Set to `false` when the zone lives outside this account. | `true` |
 
 ---
 
@@ -501,6 +543,9 @@ addons_versions = {
 | Parameter | Type | Description | Example |
 |-----------|------|-------------|---------|
 | `rules` | list | Custom WAF rule overrides. | See sample YAML |
+| `waf_ip_prefix_sets` | map | Named IP prefix lists. Replaces the single `ip_whitelist_prefixes` as of `v1.3.0`. | `{ office: ["203.0.113.0/24"] }` |
+| `waf_ip_prefix_rules` | list | Rules that allow or block the named prefix sets. | `[{ name: "office", action: "allow", priority: 1 }]` |
+| `waf_ip_whitelist_forwarded_ip_config` | map | Read the client IP from a forwarded header instead of the connection. | `{ header_name: "X-Forwarded-For", fallback_behavior: "MATCH" }` |
 
 ---
 
@@ -508,7 +553,7 @@ addons_versions = {
 In the config yaml we are allowed to override in the following way
 
 ```
-addons_version:
+addons_versions:
   kube_proxy: "some_other_version"
 ```
 
